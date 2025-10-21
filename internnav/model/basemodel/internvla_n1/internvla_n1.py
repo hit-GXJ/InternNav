@@ -304,7 +304,7 @@ class InternVLAN1ForCausalLM(Qwen2_5_VLForConditionalGeneration, InternVLAN1Meta
             position_ids=position_ids,
             attention_mask=attention_mask,
             past_key_values=past_key_values,
-            inputs_embeds=inputs_embeds,
+            inputs_embeds=inputs_embeds,   #真正的输入，混合序列（包含文本嵌入、图像特征、视频特征和 latent_queries嵌入）
             use_cache=use_cache,
             output_attentions=output_attentions,
             output_hidden_states=output_hidden_states,

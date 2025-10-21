@@ -147,6 +147,7 @@ logs/
 .vis_debug
 *.png
 *.ckpt
-/results/
+result
 checkpoints
+scene_assets
 internnav/model/basemodel/LongCLIP/

@@ -22,6 +22,42 @@ import asyncio
 import uvicorn
 from collections import defaultdict
 
+# ----------------- Gradio 4.x / gradio_client 兼容补丁（Begin） -----------------
+try:
+    import gradio as gr
+    from gradio_client import utils as _gc_utils
+
+    # 有些 schema 节点是 bool（如 additionalProperties=True），旧实现会当成 dict 访问导致崩溃
+    _old_get_type = _gc_utils.get_type
+    def _patched_get_type(schema):
+        if isinstance(schema, bool):
+            # True/False 不是对象；这里返回一个可接受的占位类型字符串
+            return "bool" if schema else "null"
+        return _old_get_type(schema)
+    _gc_utils.get_type = _patched_get_type
+
+    _old_json = _gc_utils._json_schema_to_python_type
+    def _patched_json(schema, defs=None):
+        if isinstance(schema, bool):
+            # 把布尔 schema 视作 "Any"；避免后续对 dict 的键访问
+            return "Any"
+        return _old_json(schema, defs)
+    _gc_utils._json_schema_to_python_type = _patched_json
+
+    # （可选）Gradio 某些版本要求 Accordion 必须显式提供 label，这里兜底一层
+    _old_acc_init = gr.Accordion.__init__
+    def _acc_compat(self, *args, **kwargs):
+        if "label" not in kwargs and (len(args) == 0 or not isinstance(args[0], str)):
+            kwargs["label"] = "Advanced"
+        return _old_acc_init(self, *args, **kwargs)
+    gr.Accordion.__init__ = _acc_compat
+
+except Exception as _e:
+    # 不影响后续逻辑；若补丁失败，仍按原逻辑继续（只在极少版本组合会触发）
+    print("[gradio compat] patch skipped:", _e)
+# ----------------- Gradio 4.x / gradio_client 兼容补丁（End） -------------------
+
+
 BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8001") # fastapi server
 API_ENDPOINTS = {
     "submit_task": f"{BACKEND_URL}/predict/video",
@@ -498,7 +534,7 @@ with gr.Blocks(title="Robot Navigation Inference", css=custom_css) as demo:
                 history_slots = []
                 for i in range(10):
                     with gr.Column(visible=False) as slot:
-                        with gr.Accordion(visible=False, open=False) as accordion:
+                        with gr.Accordion("Advanced",visible=False, open=False) as accordion:
                             video = gr.Video(interactive=False)  
                             detail_md = gr.Markdown() 
                     history_slots.append((slot, accordion, video, detail_md))  
@@ -570,6 +606,6 @@ with gr.Blocks(title="Robot Navigation Inference", css=custom_css) as demo:
     demo.unload(fn=cleanup_session)
 
 if __name__ == "__main__":
-    demo.launch(server_name="0.0.0.0", server_port=5750, debug=True, share = True, allowed_paths=["/mnt"])
+    demo.launch(server_name="0.0.0.0", server_port=5750, debug=True, share = False, allowed_paths=["/mnt"])
 
     
